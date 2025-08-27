@@ -8,10 +8,11 @@ import { syncProducts } from '@/lib/actions';
 import { useToast } from "@/hooks/use-toast";
 
 type SyncStatusProps = {
-  lastSync: Date;
+  lastSync?: Date;
+  hasApiKeys: boolean;
 };
 
-export default function SyncStatus({ lastSync }: SyncStatusProps) {
+export default function SyncStatus({ lastSync, hasApiKeys }: SyncStatusProps) {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
@@ -20,14 +21,14 @@ export default function SyncStatus({ lastSync }: SyncStatusProps) {
       const result = await syncProducts();
       if (result.success) {
         toast({
-          title: "Sync Successful",
-          description: "Product data has been updated.",
+          title: "Đồng bộ hóa thành công",
+          description: `Đã cập nhật ${result.productCount} sản phẩm.`,
         });
       } else {
         toast({
             variant: "destructive",
-            title: "Sync Failed",
-            description: result.error || "An unknown error occurred.",
+            title: "Đồng bộ hóa thất bại",
+            description: result.error || "Đã xảy ra lỗi không xác định.",
         });
       }
     });
@@ -36,15 +37,15 @@ export default function SyncStatus({ lastSync }: SyncStatusProps) {
   return (
     <div className="flex items-center gap-4">
       <p className="hidden text-sm text-muted-foreground sm:block">
-        Last synced: {formatDistanceToNow(new Date(lastSync), { addSuffix: true })}
+        {lastSync ? `Lần cuối đồng bộ: ${formatDistanceToNow(new Date(lastSync), { addSuffix: true })}` : 'Chưa đồng bộ hóa'}
       </p>
-      <Button onClick={handleSync} disabled={isPending} variant="outline" className="w-[130px]">
+      <Button onClick={handleSync} disabled={isPending || !hasApiKeys} variant="outline" className="w-[130px]">
         {isPending ? (
           <LoaderCircle className="animate-spin" />
         ) : (
           <RefreshCw />
         )}
-        <span className="ml-2">{isPending ? 'Syncing...' : 'Sync Now'}</span>
+        <span className="ml-2">{isPending ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}</span>
       </Button>
     </div>
   );
