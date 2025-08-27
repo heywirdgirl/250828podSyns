@@ -1,3 +1,4 @@
+
 "use server";
 
 import { revalidatePath } from 'next/cache';
@@ -32,7 +33,7 @@ async function getPrintfulProducts() {
 }
 
 export async function getProducts(): Promise<{ products: Product[], error?: string }> {
-  if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY || !process.env.PRINTFUL_API_KEY) {
+  if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY || !PRINTFUL_API_KEY) {
     console.error("Lỗi getProducts: Thiếu khóa API hoặc cấu hình Firebase trong các biến môi trường.");
     return { products: [], error: "API keys or Firebase configuration is missing." };
   }
@@ -41,10 +42,10 @@ export async function getProducts(): Promise<{ products: Product[], error?: stri
     const productSnapshot = await getDocs(productsCollection);
     const productList = productSnapshot.docs.map(doc => doc.data() as Product);
     return { products: productList };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Lỗi getProducts khi lấy dữ liệu từ Firestore:", error);
-    if (error instanceof Error && error.message.includes('permission-denied')) {
-        return { products: [], error: "Firestore permission denied. Check your security rules." };
+    if (error.code === 'permission-denied') {
+        return { products: [], error: "firestore-permission-denied" };
     }
     return { products: [], error: "Could not fetch products." };
   }
@@ -71,8 +72,9 @@ export async function getSyncHistory(): Promise<SyncLog[]> {
             .filter(log => log.syncDate >= threeMonthsAgo);
         
         return historyList;
-    } catch (error) {
+    } catch (error: any) {
         console.error("Lỗi getSyncHistory khi lấy lịch sử đồng bộ:", error);
+        // Don't throw an error if history can't be fetched, just return empty
         return [];
     }
 }
@@ -116,8 +118,11 @@ export async function syncProducts(): Promise<{ success: boolean; error?: string
     revalidatePath('/');
     
     return { success: true, productCount };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Lỗi syncProducts khi đồng bộ hóa:", error);
+    if (error.code === 'permission-denied') {
+        return { success: false, error: "Quyền ghi vào Firestore bị từ chối. Vui lòng kiểm tra Quy tắc bảo mật của bạn." };
+    }
     const errorMessage = error instanceof Error ? error.message : "Đã xảy ra lỗi không xác định.";
     return { success: false, error: `Failed to sync products: ${errorMessage}` };
   }

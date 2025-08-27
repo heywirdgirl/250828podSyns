@@ -1,14 +1,16 @@
+
 import { getProducts, getSyncHistory } from '@/lib/actions';
 import ProductCard from '@/components/product-card';
 import SyncStatus from '@/components/sync-status';
 import SyncHistory from '@/components/sync-history';
-import { Package, AlertTriangle } from 'lucide-react';
+import { Package, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 export default async function Home() {
   const { products, error } = await getProducts();
   const syncHistory = await getSyncHistory();
 
-  const hasApiKeys = !error;
+  const hasApiKeys = error !== 'API keys or Firebase configuration is missing.';
+  const isPermissionError = error === 'firestore-permission-denied';
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -25,7 +27,7 @@ export default async function Home() {
           <SyncStatus lastSync={syncHistory[0]?.syncDate} hasApiKeys={hasApiKeys} />
         </div>
       </header>
-      <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+      <main className="container mx-auto p-4 sm:p-6 lg:px-8">
         {!hasApiKeys ? (
           <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-destructive/50 bg-destructive/5 p-12 text-center text-destructive">
             <AlertTriangle className="h-12 w-12" />
@@ -33,6 +35,18 @@ export default async function Home() {
             <p className="mt-2 max-w-md text-destructive/80">
               Vui lòng đảm bảo các khóa API Printful và cấu hình Firebase của bạn được thiết lập chính xác trong tệp .env.local.
             </p>
+          </div>
+        ) : isPermissionError ? (
+          <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-destructive/50 bg-destructive/5 p-12 text-center text-destructive">
+            <ShieldAlert className="h-12 w-12" />
+            <h2 className="mt-4 text-2xl font-bold">Lỗi Quyền Truy cập Firestore</h2>
+            <p className="mt-2 max-w-lg text-destructive/80">
+              Ứng dụng của bạn không có quyền đọc dữ liệu từ Firestore. Để khắc phục, hãy vào Bảng điều khiển Firebase, đến Firestore Database &gt; Rules và cập nhật quy tắc của bạn để cho phép đọc và ghi.
+            </p>
+            <p className="mt-4 font-mono bg-destructive/10 p-2 rounded-md text-xs">
+              allow read, write: if true;
+            </p>
+            <p className="mt-2 text-xs text-destructive/70">Lưu ý: Chỉ sử dụng quy tắc trên cho mục đích phát triển.</p>
           </div>
         ) : products.length > 0 ? (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
