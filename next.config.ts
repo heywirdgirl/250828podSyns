@@ -24,6 +24,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  env: {
+    PRINTFUL_API_KEY: process.env.PRINTFUL_API_KEY,
+  }
 };
 
 export default nextConfig;

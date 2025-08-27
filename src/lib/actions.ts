@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, writeBatch, doc, serverTimestamp, query, orderBy, limit, getDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, writeBatch, doc, serverTimestamp, query, orderBy, limit, setDoc } from 'firebase/firestore';
 import type { Product, SyncLog } from '@/lib/types';
 
 const PRINTFUL_API_KEY = process.env.PRINTFUL_API_KEY;
@@ -31,8 +31,8 @@ async function getPrintfulProducts() {
 }
 
 export async function getProducts(): Promise<{ products: Product[], error?: string }> {
-  if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-    return { products: [], error: "Firebase configuration is missing." };
+  if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY || !process.env.PRINTFUL_API_KEY) {
+    return { products: [], error: "API keys or Firebase configuration is missing." };
   }
   try {
     const productsCollection = collection(db, 'products');
