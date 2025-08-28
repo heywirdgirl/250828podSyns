@@ -33,8 +33,7 @@ async function getPrintfulProducts() {
 }
 
 export async function getProducts(): Promise<{ products: Product[], error?: string }> {
-  if (!hasAdminConfig || !PRINTFUL_API_KEY) {
-    console.error("Lỗi getProducts: Thiếu khóa API hoặc cấu hình Firebase trong các biến môi trường.");
+  if (!hasAdminConfig) {
     return { products: [], error: "API keys or Firebase configuration is missing." };
   }
   
@@ -45,7 +44,9 @@ export async function getProducts(): Promise<{ products: Product[], error?: stri
     return { products: productList };
   } catch (error: any) {
     console.error("Lỗi getProducts khi lấy dữ liệu từ Firestore:", error);
-    // With Admin SDK, permission errors are less likely unless the service account itself has issues.
+    if (error.code === 'permission-denied') {
+        return { products: [], error: "Lỗi quyền truy cập Firestore. Vui lòng kiểm tra lại Quy tắc bảo mật của bạn." };
+    }
     return { products: [], error: "Could not fetch products." };
   }
 }
@@ -82,7 +83,7 @@ export async function getSyncHistory(): Promise<SyncLog[]> {
 
 export async function syncProducts(): Promise<{ success: boolean; error?: string; productCount?: number }> {
   console.log("Bắt đầu đồng bộ hóa sản phẩm...");
-  if (!PRINTFUL_API_KEY || !hasAdminConfig) {
+  if (!hasAdminConfig || !PRINTFUL_API_KEY) {
     const errorMessage = "Thiếu khóa API hoặc cấu hình Firebase Admin.";
     console.error("Lỗi syncProducts:", errorMessage);
     return { success: false, error: errorMessage };
