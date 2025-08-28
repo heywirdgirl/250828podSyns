@@ -35,6 +35,7 @@ export default function SyncHistory({ history }: SyncHistoryProps) {
                       year: 'numeric',
                       hour: '2-digit',
                       minute: '2-digit',
+                      timeZone: 'Asia/Ho_Chi_Minh',
                     })}
                   </p>
                   <p className="text-muted-foreground">
