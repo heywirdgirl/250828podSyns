@@ -133,11 +133,12 @@ export async function syncProducts(): Promise<{ success: boolean; error?: string
     const productsCollection = adminDb!.collection('products');
     const batch = adminDb!.batch();
 
-    printfulProducts.forEach((p: any) => {
-        // Use sync_product object which contains the full details
-        const productData = p.sync_product;
-        const docRef = productsCollection.doc(productData.id.toString());
-        batch.set(docRef, productData);
+    printfulProducts.forEach((productData: any) => {
+        if (productData && productData.sync_product && productData.sync_product.id) {
+            const docRef = productsCollection.doc(productData.sync_product.id.toString());
+            // Lưu toàn bộ đối tượng productData, bao gồm cả sync_product và sync_variants
+            batch.set(docRef, productData);
+        }
     });
 
     await batch.commit();
@@ -153,9 +154,10 @@ export async function syncProducts(): Promise<{ success: boolean; error?: string
     revalidatePath('/');
     
     return { success: true, productCount };
-  } catch (error: any) {
-    console.error("Lỗi syncProducts khi đồng bộ hóa:", error);
-    const errorMessage = error instanceof Error ? error.message : "Đã xảy ra lỗi không xác định.";
-    return { success: false, error: `Failed to sync products: ${errorMessage}` };
-  }
+  } catch (error: any)
+    {
+        console.error("Lỗi syncProducts khi đồng bộ hóa:", error);
+        const errorMessage = error instanceof Error ? error.message : "Đã xảy ra lỗi không xác định.";
+        return { success: false, error: `Failed to sync products: ${errorMessage}` };
+    }
 }
