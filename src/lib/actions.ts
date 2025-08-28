@@ -100,14 +100,9 @@ export async function syncProducts(): Promise<{ success: boolean; error?: string
     const batch = adminDb!.batch();
 
     printfulProducts.forEach((p: any) => {
-        const product: Product = {
-            id: p.id.toString(),
-            name: p.name,
-            imageUrl: p.thumbnail_url,
-            variantsCount: p.variants,
-        };
-        const docRef = productsCollection.doc(product.id);
-        batch.set(docRef, product);
+        // Lưu toàn bộ đối tượng JSON gốc vào Firestore
+        const docRef = productsCollection.doc(p.id.toString());
+        batch.set(docRef, p);
     });
 
     await batch.commit();

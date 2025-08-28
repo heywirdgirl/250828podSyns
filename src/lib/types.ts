@@ -1,9 +1,6 @@
-export type Product = {
-  id: string;
-  name: string;
-  imageUrl: string;
-  variantsCount: number;
-};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Product = any;
 
 export type SyncLog = {
     id: string;
