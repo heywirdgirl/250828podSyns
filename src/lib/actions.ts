@@ -8,13 +8,13 @@ import type { Product, SyncLog } from '@/lib/types';
 
 const PRINTFUL_API_KEY = process.env.PRINTFUL_API_KEY;
 
-async function getPrintfulProducts() {
+// Helper function to fetch full product details
+async function getFullProductDetails(productId: number): Promise<any> {
     if (!PRINTFUL_API_KEY) {
-        console.error("Lỗi getPrintfulProducts: Biến môi trường PRINTFUL_API_KEY bị thiếu.");
-        throw new Error("Missing PRINTFUL_API_KEY environment variable.");
+        throw new Error("Missing PRINTFUL_API_KEY.");
     }
 
-    const response = await fetch('https://api.printful.com/sync/products', {
+    const response = await fetch(`https://api.printful.com/sync/products/${productId}`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${PRINTFUL_API_KEY}`,
@@ -24,12 +24,46 @@ async function getPrintfulProducts() {
 
     if (!response.ok) {
         const errorData = await response.json();
-        console.error("Lỗi API Printful:", errorData);
-        throw new Error(`Failed to fetch products from Printful: ${errorData.error?.message || response.statusText}`);
+        console.error(`Lỗi API Printful cho sản phẩm ID ${productId}:`, errorData);
+        // Return null or throw an error based on how you want to handle individual failures
+        return null; 
     }
-
     const data = await response.json();
     return data.result;
+}
+
+
+async function getPrintfulProducts() {
+    if (!PRINTFUL_API_KEY) {
+        console.error("Lỗi getPrintfulProducts: Biến môi trường PRINTFUL_API_KEY bị thiếu.");
+        throw new Error("Missing PRINTFUL_API_KEY environment variable.");
+    }
+
+    // 1. Get the list of product summaries
+    const listResponse = await fetch('https://api.printful.com/sync/products', {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${PRINTFUL_API_KEY}`,
+            'Content-Type': 'application/json'
+        }
+    });
+
+    if (!listResponse.ok) {
+        const errorData = await listResponse.json();
+        console.error("Lỗi API Printful khi lấy danh sách sản phẩm:", errorData);
+        throw new Error(`Failed to fetch product list from Printful: ${errorData.error?.message || listResponse.statusText}`);
+    }
+
+    const listData = await listResponse.json();
+    const productSummaries = listData.result;
+
+    // 2. Fetch full details for each product
+    const detailedProducts = await Promise.all(
+        productSummaries.map((product: any) => getFullProductDetails(product.id))
+    );
+
+    // Filter out any products that failed to fetch
+    return detailedProducts.filter(p => p !== null);
 }
 
 export async function getProducts(): Promise<{ products: Product[], error?: string }> {
@@ -100,9 +134,10 @@ export async function syncProducts(): Promise<{ success: boolean; error?: string
     const batch = adminDb!.batch();
 
     printfulProducts.forEach((p: any) => {
-        // Lưu toàn bộ đối tượng JSON gốc vào Firestore
-        const docRef = productsCollection.doc(p.id.toString());
-        batch.set(docRef, p);
+        // Use sync_product object which contains the full details
+        const productData = p.sync_product;
+        const docRef = productsCollection.doc(productData.id.toString());
+        batch.set(docRef, productData);
     });
 
     await batch.commit();
