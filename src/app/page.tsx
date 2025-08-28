@@ -1,15 +1,15 @@
 
 import { getProducts, getSyncHistory } from '@/lib/actions';
-import ProductCard from '@/components/product-card';
 import SyncStatus from '@/components/sync-status';
 import SyncHistory from '@/components/sync-history';
-import { Package, AlertTriangle } from 'lucide-react';
+import { Package, AlertTriangle, FileJson } from 'lucide-react';
 
 export default async function Home() {
   const { products, error } = await getProducts();
   const syncHistory = await getSyncHistory();
 
   const hasApiKeys = error !== 'API keys or Firebase configuration is missing.';
+  const firstProduct = products.length > 0 ? products[0] : null;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -35,12 +35,16 @@ export default async function Home() {
               Vui lòng đảm bảo các khóa API Printful và cấu hình Firebase Admin của bạn được thiết lập chính xác trong tệp .env.local.
             </p>
           </div>
-        ) : products.length > 0 ? (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+        ) : firstProduct ? (
+            <div>
+                <h2 className="text-xl font-semibold flex items-center gap-2 mb-4">
+                    <FileJson className="h-5 w-5" />
+                    Dữ liệu JSON của sản phẩm đầu tiên
+                </h2>
+                <pre className="p-4 rounded-lg bg-secondary text-secondary-foreground overflow-x-auto text-sm">
+                    <code>{JSON.stringify(firstProduct, null, 2)}</code>
+                </pre>
+            </div>
         ) : (
           <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-card p-12 text-center text-muted-foreground">
             <Package className="h-12 w-12" />

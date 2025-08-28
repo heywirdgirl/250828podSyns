@@ -57,12 +57,16 @@ export async function getSyncHistory(): Promise<SyncLog[]> {
     }
     try {
         const historyCollection = adminDb!.collection('syncHistory');
-        const q = historyCollection.orderBy('syncDate', 'desc').limit(100);
+        
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const q = historyCollection
+            .where('syncDate', '>=', thirtyDaysAgo)
+            .orderBy('syncDate', 'desc');
+            
         const historySnapshot = await q.get();
         
-        const threeMonthsAgo = new Date();
-        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-
         const historyList = historySnapshot.docs
             .map(doc => {
                 const data = doc.data();
@@ -71,8 +75,7 @@ export async function getSyncHistory(): Promise<SyncLog[]> {
                     syncDate: data.syncDate.toDate(),
                     productCount: data.productCount,
                 } as SyncLog;
-            })
-            .filter(log => log.syncDate >= threeMonthsAgo);
+            });
         
         return historyList;
     } catch (error: any) {
