@@ -1,15 +1,20 @@
 
-import { getProducts, getSyncHistory } from '@/lib/actions';
+import { getSyncHistory } from '@/lib/actions';
 import SyncStatus from '@/components/sync-status';
 import SyncHistory from '@/components/sync-history';
-import { Package, AlertTriangle, FileJson } from 'lucide-react';
+import { Package, AlertTriangle } from 'lucide-react';
+
+// A simple check for the existence of required environment variables.
+// Note: This only checks for presence, not validity.
+const hasApiKeys = !!(
+    process.env.FIREBASE_PROJECT_ID &&
+    process.env.FIREBASE_CLIENT_EMAIL &&
+    process.env.FIREBASE_PRIVATE_KEY &&
+    process.env.PRINTFUL_API_KEY
+);
 
 export default async function Home() {
-  const { products, error } = await getProducts();
   const syncHistory = await getSyncHistory();
-
-  const hasApiKeys = error !== 'API keys or Firebase configuration is missing.';
-  const firstProduct = products.length > 0 ? products[0] : null;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -35,27 +40,9 @@ export default async function Home() {
               Vui lòng đảm bảo các khóa API Printful và cấu hình Firebase Admin của bạn được thiết lập chính xác trong tệp .env.local.
             </p>
           </div>
-        ) : firstProduct ? (
-            <div>
-                <h2 className="text-xl font-semibold flex items-center gap-2 mb-4">
-                    <FileJson className="h-5 w-5" />
-                    Dữ liệu JSON của sản phẩm đầu tiên
-                </h2>
-                <pre className="p-4 rounded-lg bg-secondary text-secondary-foreground overflow-x-auto text-sm">
-                    <code>{JSON.stringify(firstProduct, null, 2)}</code>
-                </pre>
-            </div>
         ) : (
-          <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-card p-12 text-center text-muted-foreground">
-            <Package className="h-12 w-12" />
-            <h2 className="mt-4 text-2xl font-bold">Không có sản phẩm nào</h2>
-            <p className="mt-2 max-w-md">
-              Chưa có sản phẩm nào được đồng bộ hóa. Nhấp vào "Đồng bộ hóa ngay" để bắt đầu.
-            </p>
-          </div>
+          <SyncHistory history={syncHistory} />
         )}
-        
-        <SyncHistory history={syncHistory} />
       </main>
     </div>
   );
