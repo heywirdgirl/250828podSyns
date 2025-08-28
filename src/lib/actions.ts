@@ -2,8 +2,8 @@
 "use server";
 
 import { revalidatePath } from 'next/cache';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, writeBatch, doc, serverTimestamp, query, orderBy, limit, setDoc } from 'firebase/firestore';
+import { adminDb, hasAdminConfig } from '@/lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import type { Product, SyncLog } from '@/lib/types';
 
 const PRINTFUL_API_KEY = process.env.PRINTFUL_API_KEY;
@@ -33,29 +33,31 @@ async function getPrintfulProducts() {
 }
 
 export async function getProducts(): Promise<{ products: Product[], error?: string }> {
-  if (!process.env.NEXT_PUBLIC_FIREBASE_API_KEY || !PRINTFUL_API_KEY) {
+  if (!hasAdminConfig || !PRINTFUL_API_KEY) {
     console.error("Lỗi getProducts: Thiếu khóa API hoặc cấu hình Firebase trong các biến môi trường.");
     return { products: [], error: "API keys or Firebase configuration is missing." };
   }
+  
   try {
-    const productsCollection = collection(db, 'products');
-    const productSnapshot = await getDocs(productsCollection);
+    const productsCollection = adminDb!.collection('products');
+    const productSnapshot = await productsCollection.get();
     const productList = productSnapshot.docs.map(doc => doc.data() as Product);
     return { products: productList };
   } catch (error: any) {
     console.error("Lỗi getProducts khi lấy dữ liệu từ Firestore:", error);
-    if (error.code === 'permission-denied') {
-        return { products: [], error: "firestore-permission-denied" };
-    }
+    // With Admin SDK, permission errors are less likely unless the service account itself has issues.
     return { products: [], error: "Could not fetch products." };
   }
 }
 
 export async function getSyncHistory(): Promise<SyncLog[]> {
+    if (!hasAdminConfig) {
+        return [];
+    }
     try {
-        const historyCollection = collection(db, 'syncHistory');
-        const q = query(historyCollection, orderBy('syncDate', 'desc'), limit(100));
-        const historySnapshot = await getDocs(q);
+        const historyCollection = adminDb!.collection('syncHistory');
+        const q = historyCollection.orderBy('syncDate', 'desc').limit(100);
+        const historySnapshot = await q.get();
         
         const threeMonthsAgo = new Date();
         threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
@@ -74,15 +76,14 @@ export async function getSyncHistory(): Promise<SyncLog[]> {
         return historyList;
     } catch (error: any) {
         console.error("Lỗi getSyncHistory khi lấy lịch sử đồng bộ:", error);
-        // Don't throw an error if history can't be fetched, just return empty
         return [];
     }
 }
 
 export async function syncProducts(): Promise<{ success: boolean; error?: string; productCount?: number }> {
   console.log("Bắt đầu đồng bộ hóa sản phẩm...");
-  if (!PRINTFUL_API_KEY || !process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-    const errorMessage = "Thiếu khóa API hoặc cấu hình Firebase.";
+  if (!PRINTFUL_API_KEY || !hasAdminConfig) {
+    const errorMessage = "Thiếu khóa API hoặc cấu hình Firebase Admin.";
     console.error("Lỗi syncProducts:", errorMessage);
     return { success: false, error: errorMessage };
   }
@@ -91,8 +92,8 @@ export async function syncProducts(): Promise<{ success: boolean; error?: string
     const printfulProducts = await getPrintfulProducts();
     const productCount = printfulProducts.length;
 
-    const productsCollection = collection(db, 'products');
-    const batch = writeBatch(db);
+    const productsCollection = adminDb!.collection('products');
+    const batch = adminDb!.batch();
 
     printfulProducts.forEach((p: any) => {
         const product: Product = {
@@ -101,18 +102,18 @@ export async function syncProducts(): Promise<{ success: boolean; error?: string
             imageUrl: p.thumbnail_url,
             variantsCount: p.variants,
         };
-        const docRef = doc(productsCollection, product.id);
+        const docRef = productsCollection.doc(product.id);
         batch.set(docRef, product);
     });
 
     await batch.commit();
 
-    const syncLog: Omit<SyncLog, 'id'> = {
-      syncDate: serverTimestamp(),
+    const syncLog = {
+      syncDate: FieldValue.serverTimestamp(),
       productCount: productCount,
     };
-    const historyRef = doc(collection(db, 'syncHistory'));
-    await setDoc(historyRef, syncLog);
+    const historyRef = adminDb!.collection('syncHistory').doc();
+    await historyRef.set(syncLog);
     
     console.log(`Đồng bộ hóa thành công. Đã đồng bộ ${productCount} sản phẩm.`);
     revalidatePath('/');
@@ -120,9 +121,6 @@ export async function syncProducts(): Promise<{ success: boolean; error?: string
     return { success: true, productCount };
   } catch (error: any) {
     console.error("Lỗi syncProducts khi đồng bộ hóa:", error);
-    if (error.code === 'permission-denied') {
-        return { success: false, error: "Quyền ghi vào Firestore bị từ chối. Vui lòng kiểm tra Quy tắc bảo mật của bạn." };
-    }
     const errorMessage = error instanceof Error ? error.message : "Đã xảy ra lỗi không xác định.";
     return { success: false, error: `Failed to sync products: ${errorMessage}` };
   }
