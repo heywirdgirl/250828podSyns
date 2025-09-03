@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Cho phép đọc công khai cho sản phẩm và lịch sử đồng bộ
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /syncHistory/{logId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
