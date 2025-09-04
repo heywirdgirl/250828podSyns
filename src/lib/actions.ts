@@ -4,7 +4,7 @@
 import { revalidatePath } from 'next/cache';
 import { adminDb, hasAdminConfig } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import type { Product, SyncLog } from '@/lib/types';
+import type { Product, SyncLog, Order } from '@/lib/types';
 
 const PRINTFUL_API_KEY = process.env.PRINTFUL_API_KEY;
 
@@ -130,13 +130,17 @@ export async function syncProducts(): Promise<{ success: boolean; error?: string
     const printfulProducts = await getPrintfulProducts();
     const productCount = printfulProducts.length;
 
+    if (productCount === 0) {
+        console.log("Không tìm thấy sản phẩm nào từ Printful để đồng bộ.");
+        return { success: true, productCount: 0 };
+    }
+
     const productsCollection = adminDb!.collection('products');
     const batch = adminDb!.batch();
 
     printfulProducts.forEach((productData: any) => {
         if (productData && productData.sync_product && productData.sync_product.id) {
             const docRef = productsCollection.doc(productData.sync_product.id.toString());
-            // Lưu toàn bộ đối tượng productData, bao gồm cả sync_product và sync_variants
             batch.set(docRef, productData);
         }
     });
@@ -159,5 +163,81 @@ export async function syncProducts(): Promise<{ success: boolean; error?: string
         console.error("Lỗi syncProducts khi đồng bộ hóa:", error);
         const errorMessage = error instanceof Error ? error.message : "Đã xảy ra lỗi không xác định.";
         return { success: false, error: `Failed to sync products: ${errorMessage}` };
+    }
+}
+
+
+/**
+ * Creates a draft order in Printful based on an order from Firestore.
+ * This function orchestrates the entire process.
+ * @param orderData The order data, e.g., from a checkout form.
+ */
+export async function createPrintfulDraftOrder(orderData: Omit<Order, 'id' | 'status' | 'createdAt' | 'printfulOrderId'>): Promise<{ success: boolean; orderId?: string; error?: string }> {
+    if (!hasAdminConfig || !PRINTFUL_API_KEY) {
+        const error = "Server configuration is incomplete. Cannot create order.";
+        console.error(error);
+        return { success: false, error };
+    }
+
+    const ordersCollection = adminDb!.collection('orders');
+    let newOrderRef;
+
+    try {
+        // 1. Create the initial order document in Firestore
+        console.log("Creating initial order in Firestore...");
+        newOrderRef = await ordersCollection.add({
+            ...orderData,
+            status: 'pending_printful', // Initial status
+            createdAt: FieldValue.serverTimestamp(),
+            printfulOrderId: null,
+        });
+        console.log(`Created Firestore order with ID: ${newOrderRef.id}`);
+        
+        // 2. Prepare the request payload for Printful API
+        const printfulPayload = {
+            recipient: orderData.recipient,
+            items: orderData.items,
+        };
+
+        // 3. Call Printful API to create a draft order
+        console.log("Sending request to Printful API...");
+        const response = await fetch('https://api.printful.com/orders?confirm=0', { // confirm=0 creates a draft
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${PRINTFUL_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(printfulPayload),
+        });
+
+        const printfulResponse = await response.json();
+
+        if (!response.ok) {
+            const apiError = `Printful API Error: ${printfulResponse.error?.message || 'Unknown error'}`;
+            console.error(apiError, printfulResponse);
+            // Update Firestore order to 'failed' status
+            await newOrderRef.update({ status: 'failed', error: apiError });
+            return { success: false, error: apiError };
+        }
+
+        const printfulOrder = printfulResponse.result;
+
+        // 4. Update the Firestore document with Printful order ID and new status
+        console.log(`Printful draft order created with ID: ${printfulOrder.id}. Updating Firestore...`);
+        await newOrderRef.update({
+            status: 'draft',
+            printfulOrderId: printfulOrder.id,
+        });
+
+        console.log("Successfully created and linked Printful draft order.");
+        return { success: true, orderId: newOrderRef.id };
+
+    } catch (error: any) {
+        console.error("An unexpected error occurred in createPrintfulDraftOrder:", error);
+        // If an order was created in Firestore, mark it as failed
+        if (newOrderRef) {
+            await newOrderRef.update({ status: 'failed', error: error.message });
+        }
+        return { success: false, error: error.message };
     }
 }

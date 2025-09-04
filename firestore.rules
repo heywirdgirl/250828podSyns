@@ -1,15 +1,36 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Cho phép đọc công khai cho sản phẩm và lịch sử đồng bộ
+    // Allow public read for products and sync history
     match /products/{productId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if false; // Only server can write
     }
 
     match /syncHistory/{logId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if false; // Only server can write
+    }
+
+    // Rules for the new 'orders' collection
+    match /orders/{orderId} {
+      // Allow authenticated users to create new orders.
+      // They cannot set the status, printfulOrderId, or createdAt fields.
+      // The server will handle these fields securely.
+      allow create: if request.auth != null
+                    && !("status" in request.resource.data)
+                    && !("printfulOrderId" in request.resource.data)
+                    && !("createdAt" in request.resource.data);
+      
+      // Allow authenticated user who created the order to read it.
+      // You might want to add an `ownerId` field to your order document
+      // and check `request.auth.uid == resource.data.ownerId` for better security.
+      allow read: if request.auth != null; 
+
+      // Do not allow clients to update or delete orders.
+      // This must be handled by the server (Admin SDK).
+      allow update, delete: if false;
     }
   }
 }
