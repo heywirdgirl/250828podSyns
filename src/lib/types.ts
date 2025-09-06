@@ -27,13 +27,29 @@ export type Recipient = {
     email?: string;
 };
 
+// Represents the cost breakdown from Printful
+export type PrintfulCosts = {
+    subtotal: string;
+    shipping: string;
+    tax: string;
+    total: string;
+    currency: string;
+};
+
+// Represents shipping information from Printful
+export type PrintfulShippingInfo = {
+    shipping_service_name: string;
+};
+
 // Represents the main order structure
 export type Order = {
     id: string; // Firestore document ID
-    status: 'pending_printful' | 'draft' | 'confirmed' | 'failed' | 'completed';
+    status: string; // Status from Printful, e.g., 'draft', 'pending', 'failed'
     createdAt: any; // Firestore Timestamp
     recipient: Recipient;
     items: OrderItem[];
     printfulOrderId?: number; // The ID from Printful API
+    printfulCosts?: PrintfulCosts; // Cost details from Printful
+    printfulShippingInfo?: PrintfulShippingInfo; // Shipping details from Printful
     error?: string; // To store any error messages
 };

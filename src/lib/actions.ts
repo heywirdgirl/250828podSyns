@@ -160,8 +160,8 @@ export async function syncProducts(): Promise<{ success: boolean; error?: string
     return { success: true, productCount };
   } catch (error: any)
     {
-        console.error("Lỗi syncProducts khi đồng bộ hóa:", error);
         const errorMessage = error instanceof Error ? error.message : "Đã xảy ra lỗi không xác định.";
+        console.error("Lỗi syncProducts khi đồng bộ hóa:", errorMessage, error);
         return { success: false, error: `Failed to sync products: ${errorMessage}` };
     }
 }
@@ -225,8 +225,12 @@ export async function createPrintfulDraftOrder(orderData: Omit<Order, 'id' | 'st
         // 4. Update the Firestore document with Printful order ID and new status
         console.log(`Printful draft order created with ID: ${printfulOrder.id}. Updating Firestore...`);
         await newOrderRef.update({
-            status: 'draft',
+            status: printfulOrder.status, // Use status from Printful (e.g., 'draft')
             printfulOrderId: printfulOrder.id,
+            printfulCosts: printfulOrder.costs,
+            printfulShippingInfo: {
+                shipping_service_name: printfulOrder.shipping_service_name,
+            }
         });
 
         console.log("Successfully created and linked Printful draft order.");
